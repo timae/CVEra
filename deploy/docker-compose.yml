@@ -1,0 +1,74 @@
+## VulnMon — local development stack
+## Usage:
+##   docker compose -f deploy/docker-compose.yml up -d
+##   docker compose -f deploy/docker-compose.yml logs -f vulnmond
+##   docker compose -f deploy/docker-compose.yml down -v   # destroy volumes
+
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: vulnmon-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     vulnmon
+      POSTGRES_PASSWORD: vulnmon_dev
+      POSTGRES_DB:       vulnmon
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vulnmon"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── VulnMon daemon ───────────────────────────────────────────────────────────
+  vulnmond:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: vulnmon-daemon
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"   # HTTP API + /healthz + /readyz + /metrics
+    environment:
+      VULNMON_DATABASE_HOST:     postgres
+      VULNMON_DATABASE_PORT:     "5432"
+      VULNMON_DATABASE_USER:     vulnmon
+      VULNMON_DATABASE_PASSWORD: vulnmon_dev
+      VULNMON_DATABASE_NAME:     vulnmon
+      VULNMON_DATABASE_SSLMODE:  disable
+
+      VULNMON_SERVER_HOST: "0.0.0.0"
+      VULNMON_SERVER_PORT: "8080"
+
+      VULNMON_LOGGING_LEVEL: debug
+
+      # Set your NVD API key here or via a .env file
+      VULNMON_INGESTION_NVD_API_KEY: ""
+
+      # Set your Slack webhook URL here or via a .env file
+      VULNMON_ALERTING_SLACK_WEBHOOK_URL: ""
+      VULNMON_ALERTING_SLACK_CHANNEL:     "#security-alerts-dev"
+
+    volumes:
+      # Mount local configs for quick iteration without rebuilding the image.
+      - ../configs:/configs:ro
+    command: ["serve", "--config", "/configs/config.yaml"]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/vulnmon", "--help"]   # binary health only
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local

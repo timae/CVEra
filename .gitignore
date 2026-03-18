@@ -1,0 +1,21 @@
+# Build artefacts
+bin/
+dist/
+
+# Config with secrets
+configs/config.yaml
+
+# Go test cache
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Local env overrides
+.env

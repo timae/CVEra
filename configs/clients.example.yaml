@@ -1,0 +1,57 @@
+## VulnMon — example client enrollments
+##
+## Import with:  vulnmon client import configs/clients.example.yaml
+##
+## Clients are organisations whose infrastructure we manage.
+## Enrollments tell VulnMon which catalog services each client runs.
+##
+## Per-enrollment overrides (criticality, exposure) are optional.
+## When absent, the catalog service's default_criticality / default_exposure
+## values are used.
+
+clients:
+
+  # ── Acme Corp ────────────────────────────────────────────────────────────────
+  - slug:          acme-corp
+    name:          Acme Corp
+    contact_email: ops@acme.example.com
+    enrollments:
+      - service:   argo-cd
+      - service:   haproxy
+        exposure:  public           # override: this client's HAProxy faces the internet
+        criticality: critical
+      - service:   loki
+      - service:   grafana
+        exposure:  public           # Grafana is reachable externally for this client
+      - service:   fluent-bit
+      - service:   nginx-ingress
+        criticality: critical
+
+  # ── Beta Industries ──────────────────────────────────────────────────────────
+  - slug:          beta-industries
+    name:          Beta Industries
+    contact_email: security@beta.example.com
+    enrollments:
+      - service:   argo-cd
+      - service:   haproxy
+      - service:   cert-manager
+      - service:   nginx-ingress
+
+  # ── Gamma GmbH ───────────────────────────────────────────────────────────────
+  - slug:          gamma-gmbh
+    name:          Gamma GmbH
+    contact_email: admin@gamma.example.de
+    enrollments:
+      - service:   argo-cd
+      - service:   loki
+      - service:   grafana
+      - service:   fluent-bit
+      - service:   cert-manager
+      - service:   nginx-ingress
+        criticality: critical
+        exposure:    public
+      - service:   haproxy
+        # suppressed: suppress alerting for this client+service combination
+        suppressed: true
+        suppression_reason: "Gamma GmbH is migrating away from HAProxy — suppressed until Q3 2025"
+        suppression_end_date: "2025-09-01T00:00:00Z"

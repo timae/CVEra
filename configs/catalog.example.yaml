@@ -1,0 +1,103 @@
+## VulnMon — example service catalog
+##
+## Import with:  vulnmon catalog import configs/catalog.example.yaml
+##
+## Fields:
+##   slug            – machine-readable identifier (kebab-case, unique)
+##   name            – human-readable display name
+##   cpe23           – CPE 2.3 URI for NVD matching (find at https://nvd.nist.gov/products/cpe)
+##   current_version – the version currently deployed to ALL clients
+##   package_name    – OS-level package name (optional, for package-based matching)
+##   package_type    – deb | apk | rpm | helm (optional)
+##   default_criticality – critical | high | medium | low (default: medium)
+##   default_exposure    – public | internal (default: internal)
+
+services:
+
+  # ── Argo CD ─────────────────────────────────────────────────────────────────
+  - slug:             argo-cd
+    name:             Argo CD
+    description:      GitOps continuous delivery tool for Kubernetes
+    cpe23:            "cpe:2.3:a:argoproj:argo_cd:*:*:*:*:*:*:*:*"
+    current_version:  "2.9.3"
+    package_type:     helm
+    default_criticality: high
+    default_exposure: internal
+    metadata:
+      homepage: "https://argoproj.github.io/cd/"
+      source:   "https://github.com/argoproj/argo-cd"
+
+  # ── HAProxy ─────────────────────────────────────────────────────────────────
+  - slug:             haproxy
+    name:             HAProxy
+    description:      High-performance TCP/HTTP load balancer and proxy
+    cpe23:            "cpe:2.3:a:haproxy:haproxy:*:*:*:*:*:*:*:*"
+    current_version:  "2.8.5"
+    package_name:     haproxy
+    package_type:     deb
+    default_criticality: critical
+    default_exposure: public
+    metadata:
+      homepage: "https://www.haproxy.org/"
+
+  # ── Loki ────────────────────────────────────────────────────────────────────
+  - slug:             loki
+    name:             Grafana Loki
+    description:      Log aggregation system by Grafana Labs
+    cpe23:            "cpe:2.3:a:grafana:loki:*:*:*:*:*:*:*:*"
+    current_version:  "2.9.4"
+    package_type:     helm
+    default_criticality: medium
+    default_exposure: internal
+    metadata:
+      homepage: "https://grafana.com/oss/loki/"
+      source:   "https://github.com/grafana/loki"
+
+  # ── Grafana ─────────────────────────────────────────────────────────────────
+  - slug:             grafana
+    name:             Grafana
+    description:      Observability and data visualisation platform
+    cpe23:            "cpe:2.3:a:grafana:grafana:*:*:*:*:*:*:*:*"
+    current_version:  "10.3.1"
+    package_type:     helm
+    default_criticality: high
+    default_exposure: public
+    metadata:
+      homepage: "https://grafana.com/"
+
+  # ── Fluent Bit ──────────────────────────────────────────────────────────────
+  - slug:             fluent-bit
+    name:             Fluent Bit
+    description:      Lightweight log processor and forwarder
+    cpe23:            "cpe:2.3:a:treasuredata:fluent_bit:*:*:*:*:*:*:*:*"
+    current_version:  "2.2.2"
+    package_type:     helm
+    default_criticality: medium
+    default_exposure: internal
+    metadata:
+      homepage: "https://fluentbit.io/"
+      source:   "https://github.com/fluent/fluent-bit"
+
+  # ── cert-manager ────────────────────────────────────────────────────────────
+  - slug:             cert-manager
+    name:             cert-manager
+    description:      X.509 certificate management for Kubernetes
+    cpe23:            "cpe:2.3:a:jetstack:cert-manager:*:*:*:*:*:*:*:*"
+    current_version:  "1.13.3"
+    package_type:     helm
+    default_criticality: high
+    default_exposure: internal
+    metadata:
+      homepage: "https://cert-manager.io/"
+
+  # ── NGINX Ingress Controller ─────────────────────────────────────────────────
+  - slug:             nginx-ingress
+    name:             NGINX Ingress Controller
+    description:      Kubernetes ingress controller using NGINX
+    cpe23:            "cpe:2.3:a:nginx:nginx_ingress_controller:*:*:*:*:*:*:*:*"
+    current_version:  "1.9.5"
+    package_type:     helm
+    default_criticality: critical
+    default_exposure: public
+    metadata:
+      homepage: "https://kubernetes.github.io/ingress-nginx/"
