@@ -1,15 +1,49 @@
 ## CVEra — local development stack
-## Usage:
-##   docker compose -f deploy/docker-compose.yml up -d
-##   docker compose -f deploy/docker-compose.yml logs -f cverad
-##   docker compose -f deploy/docker-compose.yml down -v   # destroy volumes
+##
+## SQLite mode (default — no Postgres needed):
+##   docker compose -f deploy/docker-compose.yml up -d cverad-sqlite
+##   docker compose -f deploy/docker-compose.yml logs -f cverad-sqlite
+##
+## PostgreSQL mode:
+##   docker compose -f deploy/docker-compose.yml --profile postgres up -d
+##   docker compose -f deploy/docker-compose.yml logs -f cverad-postgres
+##
+## Tear everything down:
+##   docker compose -f deploy/docker-compose.yml --profile postgres down -v
 
 version: "3.9"
 
 services:
 
-  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  # ── CVEra with SQLite (zero-infra, default) ───────────────────────────────
+  cverad-sqlite:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: cvera-sqlite
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      CVERA_DATABASE_BACKEND:  sqlite
+      CVERA_DATABASE_SQLITE_PATH: /data/cvera.db
+
+      CVERA_SERVER_HOST: "0.0.0.0"
+      CVERA_SERVER_PORT: "8080"
+      CVERA_LOGGING_LEVEL: debug
+
+      CVERA_INGESTION_NVD_API_KEY:        ""   # set your key here or in .env
+      CVERA_ALERTING_SLACK_WEBHOOK_URL:   ""   # set your webhook here or in .env
+      CVERA_ALERTING_SLACK_CHANNEL:       "#security-alerts-dev"
+
+    volumes:
+      - sqlite_data:/data            # persists cvera.db across restarts
+      - ../configs:/configs:ro       # live-reload configs without rebuilding
+    command: ["serve", "--config", "/configs/config.yaml"]
+
+  # ── PostgreSQL (only started with --profile postgres) ─────────────────────
   postgres:
+    profiles: [postgres]
     image: postgres:16-alpine
     container_name: cvera-postgres
     restart: unless-stopped
@@ -27,48 +61,42 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── CVEra daemon ───────────────────────────────────────────────────────────
-  cverad:
+  # ── CVEra with PostgreSQL (only started with --profile postgres) ───────────
+  cverad-postgres:
+    profiles: [postgres]
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    container_name: cvera-daemon
+    container_name: cvera-postgres-daemon
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8080:8080"   # HTTP API + /healthz + /readyz + /metrics
+      - "8081:8080"   # offset to avoid conflict with cverad-sqlite
     environment:
-      CVERA_DATABASE_HOST:     postgres
-      CVERA_DATABASE_PORT:     "5432"
-      CVERA_DATABASE_USER:     cvera
-      CVERA_DATABASE_PASSWORD: cvera_dev
-      CVERA_DATABASE_NAME:     cvera
-      CVERA_DATABASE_SSLMODE:  disable
+      CVERA_DATABASE_BACKEND:      postgres
+      CVERA_DATABASE_HOST:         postgres
+      CVERA_DATABASE_PORT:         "5432"
+      CVERA_DATABASE_USER:         cvera
+      CVERA_DATABASE_PASSWORD:     cvera_dev
+      CVERA_DATABASE_NAME:         cvera
+      CVERA_DATABASE_SSLMODE:      disable
 
       CVERA_SERVER_HOST: "0.0.0.0"
       CVERA_SERVER_PORT: "8080"
-
       CVERA_LOGGING_LEVEL: debug
 
-      # Set your NVD API key here or via a .env file
-      CVERA_INGESTION_NVD_API_KEY: ""
-
-      # Set your Slack webhook URL here or via a .env file
-      CVERA_ALERTING_SLACK_WEBHOOK_URL: ""
-      CVERA_ALERTING_SLACK_CHANNEL:     "#security-alerts-dev"
+      CVERA_INGESTION_NVD_API_KEY:        ""
+      CVERA_ALERTING_SLACK_WEBHOOK_URL:   ""
+      CVERA_ALERTING_SLACK_CHANNEL:       "#security-alerts-dev"
 
     volumes:
-      # Mount local configs for quick iteration without rebuilding the image.
       - ../configs:/configs:ro
     command: ["serve", "--config", "/configs/config.yaml"]
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/cvera", "--help"]   # binary health only
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
 volumes:
+  sqlite_data:
+    driver: local
   postgres_data:
     driver: local

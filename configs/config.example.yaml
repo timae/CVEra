@@ -7,15 +7,32 @@
 ## Environment variables take precedence over this file.
 
 # ── Database ──────────────────────────────────────────────────────────────────
+#
+# CVEra supports two backends. Choose one:
+#
+#   sqlite   — Zero infrastructure. Data stored in a single file on disk.
+#              Perfect for single-server deployments and local development.
+#              No Postgres needed. This is the default.
+#
+#   postgres — Full PostgreSQL. Required if you run multiple instances of CVEra
+#              (e.g. in Kubernetes). Supports pg_try_advisory_lock for safe
+#              distributed job scheduling.
+#
 database:
-  host:     localhost
-  port:     5432
-  user:     cvera
-  password: cvera_dev      # override via CVERA_DATABASE_PASSWORD
-  name:     cvera
-  sslmode:  disable          # "require" in production
-  max_conns: 20
-  min_conns: 2
+  # ── SQLite (default) ─────────────────────────────────────────────────────
+  backend:     sqlite
+  sqlite_path: cvera.db      # path to the .db file; created automatically
+
+  # ── PostgreSQL (uncomment to use) ────────────────────────────────────────
+  # backend:   postgres
+  # host:      localhost
+  # port:      5432
+  # user:      cvera
+  # password:  cvera_dev      # override via CVERA_DATABASE_PASSWORD
+  # name:      cvera
+  # ssl_mode:  disable         # "require" in production
+  # max_open_conns: 20
+  # max_idle_conns: 5
 
 # ── HTTP server ───────────────────────────────────────────────────────────────
 server:

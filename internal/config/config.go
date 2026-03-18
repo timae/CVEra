@@ -26,6 +26,15 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
+	// Backend selects the storage engine.
+	//   "sqlite"   — zero-infrastructure, single file on disk (default)
+	//   "postgres" — full PostgreSQL for multi-replica / production use
+	Backend    string `mapstructure:"backend"`
+	// SQLitePath is the path to the SQLite database file.
+	// Only used when Backend = "sqlite". Defaults to "cvera.db".
+	SQLitePath string `mapstructure:"sqlite_path"`
+
+	// PostgreSQL fields — only used when Backend = "postgres".
 	Host         string        `mapstructure:"host"`
 	Port         int           `mapstructure:"port"`
 	Name         string        `mapstructure:"name"`
@@ -130,6 +139,8 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.read_timeout", "30s")
 	v.SetDefault("server.write_timeout", "30s")
+	v.SetDefault("database.backend", "sqlite")
+	v.SetDefault("database.sqlite_path", "cvera.db")
 	v.SetDefault("database.port", 5432)
 	v.SetDefault("database.ssl_mode", "require")
 	v.SetDefault("database.max_open_conns", 20)
@@ -196,17 +207,24 @@ func Load(configPath string) (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.Database.Host == "" {
-		return fmt.Errorf("database.host is required")
-	}
-	if c.Database.Name == "" {
-		return fmt.Errorf("database.name is required")
+	switch c.Database.Backend {
+	case "sqlite", "":
+		// SQLitePath defaults to "cvera.db" — nothing required.
+	case "postgres":
+		if c.Database.Host == "" {
+			return fmt.Errorf("database.host is required when backend is postgres")
+		}
+		if c.Database.Name == "" {
+			return fmt.Errorf("database.name is required when backend is postgres")
+		}
+	default:
+		return fmt.Errorf("database.backend must be \"sqlite\" or \"postgres\", got %q", c.Database.Backend)
 	}
 	if c.Alerting.Slack.Enabled && c.Alerting.Slack.WebhookURL == "" {
 		return fmt.Errorf("alerting.slack.webhook_url required when slack enabled")
 	}
 	valid := map[string]bool{"exact": true, "strong": true, "weak": true, "unknown": true}
-	if !valid[c.Matching.MinAlertConfidence] {
+	if c.Matching.MinAlertConfidence != "" && !valid[c.Matching.MinAlertConfidence] {
 		return fmt.Errorf("matching.min_alert_confidence must be one of: exact, strong, weak, unknown")
 	}
 	return nil

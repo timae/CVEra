@@ -4,18 +4,18 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"database/sql"
 
 	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgClientRepository struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
 // NewClientRepository returns a ClientRepository backed by PostgreSQL.
-func NewClientRepository(pool *pgxpool.Pool) ClientRepository {
-	return &pgClientRepository{pool: pool}
+func NewClientRepository(db *sql.DB) ClientRepository {
+	return &pgClientRepository{db: db}
 }
 
 // GetByID retrieves a client by its primary key UUID.

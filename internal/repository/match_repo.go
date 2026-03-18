@@ -5,16 +5,16 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"database/sql"
 	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgMatchRepository struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
-func NewMatchRepository(pool *pgxpool.Pool) MatchRepository {
-	return &pgMatchRepository{pool: pool}
+func NewMatchRepository(db *sql.DB) MatchRepository {
+	return &pgMatchRepository{db: db}
 }
 
 func (r *pgMatchRepository) GetByCatalogAndVuln(ctx context.Context, catalogServiceID, vulnID uuid.UUID) (*models.Match, error) {

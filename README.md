@@ -66,7 +66,7 @@ cvera/
 │   │   └── slack/
 │   ├── api/                # HTTP server (/healthz, /readyz, /metrics)
 │   ├── config/             # Config struct + Viper loading
-│   ├── db/                 # pgxpool connect + goose migrations
+│   ├── db/                 # database/sql abstraction (SQLite + Postgres) + goose
 │   ├── ingestion/          # Source abstraction, runner, NVD source
 │   │   └── nvd/
 │   ├── matching/           # CPE matcher, package matcher, engine
@@ -74,8 +74,9 @@ cvera/
 │   ├── normalize/          # Version normalization, CPE parsing, product aliases
 │   ├── repository/         # PostgreSQL repository implementations + interfaces
 │   └── scheduler/          # cron wrapper with pg_try_advisory_lock
-├── migrations/             # goose SQL migrations
-│   └── 00001_initial_schema.sql
+├── migrations/
+│   ├── postgres/           # PostgreSQL schema (goose)
+│   └── sqlite/             # SQLite schema (goose)
 ├── configs/
 │   ├── config.example.yaml
 │   ├── catalog.example.yaml   # Argo CD, HAProxy, Loki, Grafana, …
@@ -164,34 +165,53 @@ Slack alerts use Block Kit with severity colour-coding, CVSS + EPSS scores, KEV 
 
 ## Getting Started
 
-### Prerequisites
+> **New here?** Read the full step-by-step [TUTORIAL.md](TUTORIAL.md) — it covers everything from installing Go to receiving your first Slack alert.
 
-- Go 1.22+
-- Docker + Docker Compose
-- PostgreSQL 16 (or use the compose stack)
-- NVD API key (free — get at https://nvd.nist.gov/developers/request-an-api-key)
-
-### Local Development
+### Quick Start (SQLite — no database server required)
 
 ```bash
-# Start Postgres
-docker compose -f deploy/docker-compose.yml up -d postgres
+git clone https://github.com/timae/CVEra.git && cd CVEra
 
-# Build the binary
+# Build
 make build
 
-# Copy and edit config
+# Copy config (SQLite is the default — no Postgres needed)
 cp configs/config.example.yaml configs/config.yaml
-# → set database.password, ingestion.nvd.api_key, alerting.slack.webhook_url
+# → set ingestion.nvd.api_key and alerting.slack.webhook_url
 
-# Run migrations
+# Create schema and seed example data
 make migrate-up
-
-# Load example catalog and clients
 make seed
 
-# Start the daemon
+# Start
 make run
+```
+
+### PostgreSQL mode
+
+Change one block in `configs/config.yaml`:
+
+```yaml
+database:
+  backend:   postgres
+  host:      localhost
+  port:      5432
+  user:      cvera
+  password:  your-password
+  name:      cvera
+  ssl_mode:  require
+```
+
+Then `make migrate-up && make run`. Everything else is identical.
+
+### Docker
+
+```bash
+# SQLite (default)
+docker compose -f deploy/docker-compose.yml up -d cverad-sqlite
+
+# PostgreSQL
+docker compose -f deploy/docker-compose.yml --profile postgres up -d
 ```
 
 ### Available Make Targets
@@ -217,11 +237,18 @@ make help            Show all targets
 Configuration is loaded from a YAML file (default: `configs/config.yaml`). Every value can be overridden with an environment variable using the `CVERA_` prefix.
 
 ```yaml
+# SQLite (default — zero infrastructure)
 database:
-  host:     localhost
-  port:     5432
-  user:     cvera
-  password: ""           # CVERA_DATABASE_PASSWORD
+  backend:     sqlite
+  sqlite_path: cvera.db
+
+# PostgreSQL (multi-replica / production)
+# database:
+#   backend:   postgres
+#   host:      localhost
+#   port:      5432
+#   user:      cvera
+#   password:  ""         # CVERA_DATABASE_PASSWORD
 
 ingestion:
   nvd:
@@ -270,7 +297,8 @@ cvera ingest run [--source=nvd]           Trigger manual ingestion
 
 | Package | Purpose |
 |---------|---------|
-| `jackc/pgx/v5` | PostgreSQL driver + connection pool |
+| `jackc/pgx/v5` | PostgreSQL driver (via `database/sql` stdlib adapter) |
+| `modernc.org/sqlite` | SQLite driver, pure Go — no CGO required |
 | `pressly/goose/v3` | SQL migrations |
 | `robfig/cron/v3` | Cron scheduler |
 | `spf13/cobra` + `viper` | CLI + config loading |

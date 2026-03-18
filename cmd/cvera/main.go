@@ -67,24 +67,24 @@ func newServeCmd() *cobra.Command {
 			defer cancel()
 
 			// Database
-			pool, err := db.Connect(ctx, cfg.Database)
+			sqlDB, backend, err := db.Open(ctx, cfg.Database)
 			if err != nil {
 				return fmt.Errorf("connecting to database: %w", err)
 			}
-			defer pool.Close()
+			defer sqlDB.Close()
 
 			// Run migrations on startup
-			if err := db.Migrate(ctx, cfg.Database.DSN(), "migrations"); err != nil {
+			if err := db.Migrate(ctx, sqlDB, backend); err != nil {
 				return fmt.Errorf("running migrations: %w", err)
 			}
 
 			// Repositories
-			catalogRepo := repository.NewCatalogRepository(pool)
-			enrollRepo  := repository.NewEnrollmentRepository(pool)
-			vulnRepo    := repository.NewVulnerabilityRepository(pool)
-			matchRepo   := repository.NewMatchRepository(pool)
-			alertRepo   := repository.NewAlertRepository(pool)
-			checkpoints := repository.NewCheckpointRepository(pool)
+			catalogRepo := repository.NewCatalogRepository(sqlDB)
+			enrollRepo  := repository.NewEnrollmentRepository(sqlDB)
+			vulnRepo    := repository.NewVulnerabilityRepository(sqlDB)
+			matchRepo   := repository.NewMatchRepository(sqlDB)
+			alertRepo   := repository.NewAlertRepository(sqlDB)
+			checkpoints := repository.NewCheckpointRepository(sqlDB)
 
 			// Slack notifier
 			notifier := slack.NewNotifier(cfg.Alerting.Slack, logger)
@@ -113,7 +113,7 @@ func newServeCmd() *cobra.Command {
 			_ = runner
 
 			// Scheduler
-			sched := scheduler.New(pool, logger)
+			sched := scheduler.New(sqlDB, backend, logger)
 			sched.Register("nvd_ingestion", cfg.Ingestion.NVD.Schedule, func(ctx context.Context) error {
 				return runner.RunSource(ctx, "nvd")
 			})
@@ -159,7 +159,7 @@ func newMigrateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return db.Migrate(context.Background(), cfg.Database.DSN(), "migrations")
+				return sqlDB2, backend2, _ := db.Open(context.Background(), cfg.Database); defer sqlDB2.Close(); return db.Migrate(context.Background(), sqlDB2, backend2)
 			},
 		},
 		&cobra.Command{
@@ -170,7 +170,7 @@ func newMigrateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return db.MigrateDown(context.Background(), cfg.Database.DSN(), "migrations")
+				return sqlDB2, backend2, _ := db.Open(context.Background(), cfg.Database); defer sqlDB2.Close(); return db.MigrateDown(context.Background(), sqlDB2, backend2)
 			},
 		},
 		&cobra.Command{
@@ -181,7 +181,7 @@ func newMigrateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return db.MigrateStatus(context.Background(), cfg.Database.DSN(), "migrations")
+				return sqlDB2, backend2, _ := db.Open(context.Background(), cfg.Database); defer sqlDB2.Close(); return db.MigrateStatus(context.Background(), sqlDB2, backend2)
 			},
 		},
 	)

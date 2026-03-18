@@ -5,16 +5,16 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"database/sql"
 	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgEnrollmentRepository struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
-func NewEnrollmentRepository(pool *pgxpool.Pool) EnrollmentRepository {
-	return &pgEnrollmentRepository{pool: pool}
+func NewEnrollmentRepository(db *sql.DB) EnrollmentRepository {
+	return &pgEnrollmentRepository{db: db}
 }
 
 func (r *pgEnrollmentRepository) ListByService(ctx context.Context, catalogServiceID uuid.UUID) ([]*models.ClientEnrollment, error) {

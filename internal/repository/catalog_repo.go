@@ -6,16 +6,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"database/sql"
 	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgCatalogRepository struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
-func NewCatalogRepository(pool *pgxpool.Pool) CatalogRepository {
-	return &pgCatalogRepository{pool: pool}
+func NewCatalogRepository(db *sql.DB) CatalogRepository {
+	return &pgCatalogRepository{db: db}
 }
 
 func (r *pgCatalogRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.CatalogService, error) {

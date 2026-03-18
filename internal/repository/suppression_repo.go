@@ -4,18 +4,18 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"database/sql"
 
 	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgSuppressionRepository struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
 // NewSuppressionRepository returns a SuppressionRepository backed by PostgreSQL.
-func NewSuppressionRepository(pool *pgxpool.Pool) SuppressionRepository {
-	return &pgSuppressionRepository{pool: pool}
+func NewSuppressionRepository(db *sql.DB) SuppressionRepository {
+	return &pgSuppressionRepository{db: db}
 }
 
 // Match returns the first active suppression that applies to

@@ -5,16 +5,16 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"database/sql"
 	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgAlertRepository struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
-func NewAlertRepository(pool *pgxpool.Pool) AlertRepository {
-	return &pgAlertRepository{pool: pool}
+func NewAlertRepository(db *sql.DB) AlertRepository {
+	return &pgAlertRepository{db: db}
 }
 
 func (r *pgAlertRepository) GetByDedupKey(ctx context.Context, key string) (*models.Alert, error) {

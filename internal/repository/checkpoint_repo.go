@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"database/sql"
 	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgCheckpointRepository struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
-func NewCheckpointRepository(pool *pgxpool.Pool) CheckpointRepository {
-	return &pgCheckpointRepository{pool: pool}
+func NewCheckpointRepository(db *sql.DB) CheckpointRepository {
+	return &pgCheckpointRepository{db: db}
 }
 
 func (r *pgCheckpointRepository) Get(ctx context.Context, source string) (*models.IngestionCheckpoint, error) {
