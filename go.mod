@@ -1,4 +1,4 @@
-module github.com/yourorg/vulnmon
+module github.com/yourorg/cvera
 
 go 1.22
 

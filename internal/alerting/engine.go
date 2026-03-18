@@ -6,9 +6,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yourorg/vulnmon/internal/config"
-	"github.com/yourorg/vulnmon/internal/models"
-	"github.com/yourorg/vulnmon/internal/repository"
+	"github.com/yourorg/cvera/internal/config"
+	"github.com/yourorg/cvera/internal/models"
+	"github.com/yourorg/cvera/internal/repository"
 )
 
 // Engine is the default AlertEngine implementation.

@@ -1,4 +1,4 @@
-## ─── VulnMon Makefile ────────────────────────────────────────────────────────
+## ─── CVEra Makefile ────────────────────────────────────────────────────────
 ##
 ## Usage:
 ##   make build          – compile the binary
@@ -17,12 +17,12 @@
 
 # ── Variables ─────────────────────────────────────────────────────────────────
 
-BINARY      := vulnmon
-CMD_PKG     := ./cmd/vulnmon
+BINARY      := cvera
+CMD_PKG     := ./cmd/cvera
 OUT_DIR     := bin
 DIST_DIR    := dist
 
-IMAGE_NAME  ?= vulnmon
+IMAGE_NAME  ?= cvera
 IMAGE_TAG   ?= dev
 REGISTRY    ?=
 
@@ -49,7 +49,7 @@ GOLANGCI_LINT_VERSION ?= v1.57.2
 # ── Build ──────────────────────────────────────────────────────────────────────
 
 .PHONY: build
-build: ## Compile the binary into ./bin/vulnmon
+build: ## Compile the binary into ./bin/cvera
 	@mkdir -p $(OUT_DIR)
 	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(OUT_DIR)/$(BINARY) $(CMD_PKG)
 	@echo "→ $(OUT_DIR)/$(BINARY)"
@@ -71,7 +71,7 @@ test: ## Run unit tests (no external dependencies)
 	$(GO) test $(GOFLAGS) -race -count=1 ./... -short
 
 .PHONY: test-int
-test-int: ## Run integration tests (requires VULNMON_DATABASE_DSN or running Compose stack)
+test-int: ## Run integration tests (requires CVERA_DATABASE_DSN or running Compose stack)
 	$(GO) test $(GOFLAGS) -race -count=1 -run Integration ./...
 
 .PHONY: test-cover
@@ -118,9 +118,9 @@ docker-push: docker-build ## Push image to registry (set REGISTRY=your.registry.
 # ── Docker Compose (local dev) ─────────────────────────────────────────────────
 
 .PHONY: up
-up: ## Start the local dev stack (Postgres + vulnmond)
+up: ## Start the local dev stack (Postgres + cverad)
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
-	@echo "→ Postgres on localhost:5432, vulnmond on localhost:8080"
+	@echo "→ Postgres on localhost:5432, cverad on localhost:8080"
 
 .PHONY: down
 down: ## Stop the local dev stack
@@ -136,7 +136,7 @@ ps: ## Show running services
 
 # ── Database migrations ────────────────────────────────────────────────────────
 
-MIGRATE_DSN ?= $(VULNMON_DATABASE_DSN)
+MIGRATE_DSN ?= $(CVERA_DATABASE_DSN)
 
 .PHONY: migrate-up
 migrate-up: build ## Apply all pending migrations

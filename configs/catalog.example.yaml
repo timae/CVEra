@@ -1,6 +1,6 @@
-## VulnMon — example service catalog
+## CVEra — example service catalog
 ##
-## Import with:  vulnmon catalog import configs/catalog.example.yaml
+## Import with:  cvera catalog import configs/catalog.example.yaml
 ##
 ## Fields:
 ##   slug            – machine-readable identifier (kebab-case, unique)

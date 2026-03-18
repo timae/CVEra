@@ -3,7 +3,7 @@ package matching
 import (
 	"context"
 
-	"github.com/yourorg/vulnmon/internal/models"
+	"github.com/yourorg/cvera/internal/models"
 )
 
 // Matcher evaluates a single (CatalogService, Vulnerability) pair.

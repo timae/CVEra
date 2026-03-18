@@ -30,7 +30,7 @@ type DatabaseConfig struct {
 	Port         int           `mapstructure:"port"`
 	Name         string        `mapstructure:"name"`
 	User         string        `mapstructure:"user"`
-	Password     string        `mapstructure:"password"`  // VULNMON_DATABASE_PASSWORD
+	Password     string        `mapstructure:"password"`  // CVERA_DATABASE_PASSWORD
 	SSLMode      string        `mapstructure:"ssl_mode"`
 	MaxOpenConns int           `mapstructure:"max_open_conns"`
 	MaxIdleConns int           `mapstructure:"max_idle_conns"`
@@ -55,7 +55,7 @@ type IngestionConfig struct {
 type NVDConfig struct {
 	Enabled         bool          `mapstructure:"enabled"`
 	APIURL          string        `mapstructure:"api_url"`
-	APIKey          string        `mapstructure:"api_key"` // VULNMON_INGESTION_NVD_API_KEY
+	APIKey          string        `mapstructure:"api_key"` // CVERA_INGESTION_NVD_API_KEY
 	Schedule        string        `mapstructure:"schedule"`
 	InitialLookback time.Duration `mapstructure:"initial_lookback"`
 	RateLimitDelay  time.Duration `mapstructure:"rate_limit_delay"`
@@ -103,7 +103,7 @@ type AlertingConfig struct {
 
 type SlackConfig struct {
 	Enabled    bool          `mapstructure:"enabled"`
-	WebhookURL string        `mapstructure:"webhook_url"` // VULNMON_ALERTING_SLACK_WEBHOOK_URL
+	WebhookURL string        `mapstructure:"webhook_url"` // CVERA_ALERTING_SLACK_WEBHOOK_URL
 	Channel    string        `mapstructure:"channel"`
 	Timeout    time.Duration `mapstructure:"timeout"`
 	MaxRetries int           `mapstructure:"max_retries"`
@@ -120,8 +120,8 @@ type MetricsConfig struct {
 }
 
 // Load reads config from file + env var overrides.
-// Env vars use the prefix VULNMON_ and dot → underscore mapping.
-// Example: VULNMON_DATABASE_PASSWORD overrides database.password
+// Env vars use the prefix CVERA_ and dot → underscore mapping.
+// Example: CVERA_DATABASE_PASSWORD overrides database.password
 func Load(configPath string) (*Config, error) {
 	v := viper.New()
 
@@ -174,7 +174,7 @@ func Load(configPath string) (*Config, error) {
 	} else {
 		v.SetConfigName("config")
 		v.AddConfigPath("./configs")
-		v.AddConfigPath("/etc/vulnmon")
+		v.AddConfigPath("/etc/cvera")
 	}
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -183,7 +183,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	// Env var overrides
-	v.SetEnvPrefix("VULNMON")
+	v.SetEnvPrefix("CVERA")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 

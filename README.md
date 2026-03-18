@@ -14,7 +14,7 @@ A CVE hits **HAProxy 2.8.3** once in the catalog → one match is created → on
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                       Single Binary (vulnmond)                    │
+│                       Single Binary (cverad)                    │
 │                                                                    │
 │  ┌──────────┐   ┌───────────┐   ┌────────────┐   ┌───────────┐  │
 │  │Scheduler │──▶│ Ingestion │──▶│ Normalizer │──▶│  Matcher  │  │
@@ -58,8 +58,8 @@ CVEra uses structured APIs — not HTML scraping. The NVD API v2 gives you struc
 ## Repository Layout
 
 ```
-vulnmon/
-├── cmd/vulnmon/            # main() — cobra CLI entrypoint
+cvera/
+├── cmd/cvera/            # main() — cobra CLI entrypoint
 │   └── main.go
 ├── internal/
 │   ├── alerting/           # Alert engine + Slack notifier
@@ -82,7 +82,7 @@ vulnmon/
 │   └── clients.example.yaml
 ├── deploy/
 │   ├── Dockerfile             # Distroless multi-stage, non-root
-│   └── docker-compose.yml     # Postgres + vulnmond for local dev
+│   └── docker-compose.yml     # Postgres + cverad for local dev
 ├── pkg/retry/              # Exponential backoff with full jitter
 ├── testdata/
 ├── go.mod
@@ -197,7 +197,7 @@ make run
 ### Available Make Targets
 
 ```
-make build           Compile ./bin/vulnmon
+make build           Compile ./bin/cvera
 make test            Unit tests
 make test-int        Integration tests (requires running Postgres)
 make lint            golangci-lint
@@ -214,18 +214,18 @@ make help            Show all targets
 
 ## Configuration
 
-Configuration is loaded from a YAML file (default: `configs/config.yaml`). Every value can be overridden with an environment variable using the `VULNMON_` prefix.
+Configuration is loaded from a YAML file (default: `configs/config.yaml`). Every value can be overridden with an environment variable using the `CVERA_` prefix.
 
 ```yaml
 database:
   host:     localhost
   port:     5432
-  user:     vulnmon
-  password: ""           # VULNMON_DATABASE_PASSWORD
+  user:     cvera
+  password: ""           # CVERA_DATABASE_PASSWORD
 
 ingestion:
   nvd:
-    api_key:  ""         # VULNMON_INGESTION_NVD_API_KEY
+    api_key:  ""         # CVERA_INGESTION_NVD_API_KEY
     schedule: "0 * * * *"   # hourly
   cisa_kev:
     schedule: "0 6 * * *"   # daily
@@ -234,7 +234,7 @@ ingestion:
 
 alerting:
   slack:
-    webhook_url: ""      # VULNMON_ALERTING_SLACK_WEBHOOK_URL
+    webhook_url: ""      # CVERA_ALERTING_SLACK_WEBHOOK_URL
     channel: "#security-alerts"
   min_severity:   high
   min_confidence: strong
@@ -247,21 +247,21 @@ See [`configs/config.example.yaml`](configs/config.example.yaml) for the full an
 ## CLI Reference
 
 ```
-vulnmon serve                               Start the daemon
-vulnmon migrate [up|down|status]            Database migrations
-vulnmon catalog import --file=catalog.yaml  Import service catalog
-vulnmon catalog list                        List catalog services
-vulnmon catalog update --service=haproxy \
+cvera serve                               Start the daemon
+cvera migrate [up|down|status]            Database migrations
+cvera catalog import --file=catalog.yaml  Import service catalog
+cvera catalog list                        List catalog services
+cvera catalog update --service=haproxy \
          --version=2.8.5                   Update deployed version
-vulnmon client import --file=clients.yaml   Import client enrollments
-vulnmon client list                         List clients
-vulnmon alert list                          List active alerts
-vulnmon alert ack <id> --note="..."        Acknowledge alert
-vulnmon alert suppress \
+cvera client import --file=clients.yaml   Import client enrollments
+cvera client list                         List clients
+cvera alert list                          List active alerts
+cvera alert ack <id> --note="..."        Acknowledge alert
+cvera alert suppress \
   --cve=CVE-2024-1234 \
   --service=haproxy \
   --reason="Not affected"                  Suppress alert
-vulnmon ingest run [--source=nvd]           Trigger manual ingestion
+cvera ingest run [--source=nvd]           Trigger manual ingestion
 ```
 
 ---

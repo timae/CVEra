@@ -11,11 +11,11 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yourorg/vulnmon/internal/config"
-	"github.com/yourorg/vulnmon/internal/ingestion"
-	"github.com/yourorg/vulnmon/internal/models"
-	"github.com/yourorg/vulnmon/internal/repository"
-	"github.com/yourorg/vulnmon/pkg/retry"
+	"github.com/yourorg/cvera/internal/config"
+	"github.com/yourorg/cvera/internal/ingestion"
+	"github.com/yourorg/cvera/internal/models"
+	"github.com/yourorg/cvera/internal/repository"
+	"github.com/yourorg/cvera/pkg/retry"
 )
 
 const sourceName = "nvd"

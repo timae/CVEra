@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/yourorg/vulnmon/internal/models"
+	"github.com/yourorg/cvera/internal/models"
 )
 
 // VulnerabilitySource fetches raw vulnerability data from one upstream feed.

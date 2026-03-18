@@ -1,8 +1,8 @@
-## VulnMon — example configuration
+## CVEra — example configuration
 ##
 ## Copy to configs/config.yaml and fill in secrets.
 ## Every value here can also be set via environment variable with the
-## VULNMON_ prefix, e.g.  VULNMON_DATABASE_PASSWORD=secret
+## CVERA_ prefix, e.g.  CVERA_DATABASE_PASSWORD=secret
 ##
 ## Environment variables take precedence over this file.
 
@@ -10,9 +10,9 @@
 database:
   host:     localhost
   port:     5432
-  user:     vulnmon
-  password: vulnmon_dev      # override via VULNMON_DATABASE_PASSWORD
-  name:     vulnmon
+  user:     cvera
+  password: cvera_dev      # override via CVERA_DATABASE_PASSWORD
+  name:     cvera
   sslmode:  disable          # "require" in production
   max_conns: 20
   min_conns: 2
@@ -37,9 +37,9 @@ logging:
 # ── Alerting ──────────────────────────────────────────────────────────────────
 alerting:
   slack:
-    webhook_url: ""         # override via VULNMON_ALERTING_SLACK_WEBHOOK_URL
+    webhook_url: ""         # override via CVERA_ALERTING_SLACK_WEBHOOK_URL
     channel:    "#security-alerts"
-    username:   "VulnMon"
+    username:   "CVEra"
     icon_emoji: ":shield:"
 
   # Minimum severity to trigger a Slack alert.
@@ -52,7 +52,7 @@ alerting:
 # ── Ingestion ─────────────────────────────────────────────────────────────────
 ingestion:
   nvd:
-    api_key:  ""            # override via VULNMON_INGESTION_NVD_API_KEY
+    api_key:  ""            # override via CVERA_INGESTION_NVD_API_KEY
                             # Without a key requests are rate-limited to 5 req/30s.
     base_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
     schedule: "0 * * * *"  # hourly

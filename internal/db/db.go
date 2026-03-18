@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/yourorg/vulnmon/internal/config"
+	"github.com/yourorg/cvera/internal/config"
 )
 
 // Connect creates a pgxpool connection pool and verifies connectivity.

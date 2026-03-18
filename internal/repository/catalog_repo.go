@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/yourorg/vulnmon/internal/models"
+	"github.com/yourorg/cvera/internal/models"
 )
 
 type pgCatalogRepository struct {

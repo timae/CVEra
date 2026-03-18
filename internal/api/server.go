@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
-	"github.com/yourorg/vulnmon/internal/config"
+	"github.com/yourorg/cvera/internal/config"
 )
 
 // Server is the HTTP API server.

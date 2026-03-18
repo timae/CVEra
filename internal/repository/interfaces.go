@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/yourorg/vulnmon/internal/models"
+	"github.com/yourorg/cvera/internal/models"
 )
 
 // CatalogRepository manages the managed service catalog.

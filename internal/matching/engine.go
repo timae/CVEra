@@ -6,7 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yourorg/vulnmon/internal/repository"
+	"github.com/yourorg/cvera/internal/repository"
 )
 
 // Engine is the default MatchEngine implementation.

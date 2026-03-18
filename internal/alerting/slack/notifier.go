@@ -10,9 +10,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yourorg/vulnmon/internal/alerting"
-	"github.com/yourorg/vulnmon/internal/config"
-	"github.com/yourorg/vulnmon/pkg/retry"
+	"github.com/yourorg/cvera/internal/alerting"
+	"github.com/yourorg/cvera/internal/config"
+	"github.com/yourorg/cvera/pkg/retry"
 )
 
 // Notifier implements alerting.Notifier using a Slack incoming webhook.

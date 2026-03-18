@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/yourorg/vulnmon/internal/models"
-	"github.com/yourorg/vulnmon/internal/normalize"
+	"github.com/yourorg/cvera/internal/models"
+	"github.com/yourorg/cvera/internal/normalize"
 )
 
 // CPEMatcher implements Matcher using CPE 2.3 applicability statements.

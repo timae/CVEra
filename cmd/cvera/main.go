@@ -11,22 +11,22 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/yourorg/vulnmon/internal/alerting/slack"
-	"github.com/yourorg/vulnmon/internal/api"
-	"github.com/yourorg/vulnmon/internal/config"
-	"github.com/yourorg/vulnmon/internal/db"
-	"github.com/yourorg/vulnmon/internal/ingestion"
-	"github.com/yourorg/vulnmon/internal/ingestion/nvd"
-	"github.com/yourorg/vulnmon/internal/matching"
-	"github.com/yourorg/vulnmon/internal/repository"
-	"github.com/yourorg/vulnmon/internal/scheduler"
+	"github.com/yourorg/cvera/internal/alerting/slack"
+	"github.com/yourorg/cvera/internal/api"
+	"github.com/yourorg/cvera/internal/config"
+	"github.com/yourorg/cvera/internal/db"
+	"github.com/yourorg/cvera/internal/ingestion"
+	"github.com/yourorg/cvera/internal/ingestion/nvd"
+	"github.com/yourorg/cvera/internal/matching"
+	"github.com/yourorg/cvera/internal/repository"
+	"github.com/yourorg/cvera/internal/scheduler"
 )
 
 var configPath string
 
 func main() {
 	root := &cobra.Command{
-		Use:   "vulnmon",
+		Use:   "cvera",
 		Short: "Vulnerability monitoring for managed services",
 	}
 	root.PersistentFlags().StringVar(&configPath, "config", "", "path to config file (default: ./configs/config.yaml)")
@@ -131,7 +131,7 @@ func newServeCmd() *cobra.Command {
 			sched.Start()
 			defer sched.Stop()
 
-			logger.Info("vulnmon started")
+			logger.Info("cvera started")
 
 			// Start HTTP server (non-blocking)
 			go func() {

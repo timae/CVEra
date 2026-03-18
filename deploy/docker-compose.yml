@@ -1,7 +1,7 @@
-## VulnMon — local development stack
+## CVEra — local development stack
 ## Usage:
 ##   docker compose -f deploy/docker-compose.yml up -d
-##   docker compose -f deploy/docker-compose.yml logs -f vulnmond
+##   docker compose -f deploy/docker-compose.yml logs -f cverad
 ##   docker compose -f deploy/docker-compose.yml down -v   # destroy volumes
 
 version: "3.9"
@@ -11,28 +11,28 @@ services:
   # ── PostgreSQL ───────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: vulnmon-postgres
+    container_name: cvera-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER:     vulnmon
-      POSTGRES_PASSWORD: vulnmon_dev
-      POSTGRES_DB:       vulnmon
+      POSTGRES_USER:     cvera
+      POSTGRES_PASSWORD: cvera_dev
+      POSTGRES_DB:       cvera
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vulnmon"]
+      test: ["CMD-SHELL", "pg_isready -U cvera"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  # ── VulnMon daemon ───────────────────────────────────────────────────────────
-  vulnmond:
+  # ── CVEra daemon ───────────────────────────────────────────────────────────
+  cverad:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    container_name: vulnmon-daemon
+    container_name: cvera-daemon
     restart: unless-stopped
     depends_on:
       postgres:
@@ -40,31 +40,31 @@ services:
     ports:
       - "8080:8080"   # HTTP API + /healthz + /readyz + /metrics
     environment:
-      VULNMON_DATABASE_HOST:     postgres
-      VULNMON_DATABASE_PORT:     "5432"
-      VULNMON_DATABASE_USER:     vulnmon
-      VULNMON_DATABASE_PASSWORD: vulnmon_dev
-      VULNMON_DATABASE_NAME:     vulnmon
-      VULNMON_DATABASE_SSLMODE:  disable
+      CVERA_DATABASE_HOST:     postgres
+      CVERA_DATABASE_PORT:     "5432"
+      CVERA_DATABASE_USER:     cvera
+      CVERA_DATABASE_PASSWORD: cvera_dev
+      CVERA_DATABASE_NAME:     cvera
+      CVERA_DATABASE_SSLMODE:  disable
 
-      VULNMON_SERVER_HOST: "0.0.0.0"
-      VULNMON_SERVER_PORT: "8080"
+      CVERA_SERVER_HOST: "0.0.0.0"
+      CVERA_SERVER_PORT: "8080"
 
-      VULNMON_LOGGING_LEVEL: debug
+      CVERA_LOGGING_LEVEL: debug
 
       # Set your NVD API key here or via a .env file
-      VULNMON_INGESTION_NVD_API_KEY: ""
+      CVERA_INGESTION_NVD_API_KEY: ""
 
       # Set your Slack webhook URL here or via a .env file
-      VULNMON_ALERTING_SLACK_WEBHOOK_URL: ""
-      VULNMON_ALERTING_SLACK_CHANNEL:     "#security-alerts-dev"
+      CVERA_ALERTING_SLACK_WEBHOOK_URL: ""
+      CVERA_ALERTING_SLACK_CHANNEL:     "#security-alerts-dev"
 
     volumes:
       # Mount local configs for quick iteration without rebuilding the image.
       - ../configs:/configs:ro
     command: ["serve", "--config", "/configs/config.yaml"]
     healthcheck:
-      test: ["CMD", "/usr/local/bin/vulnmon", "--help"]   # binary health only
+      test: ["CMD", "/usr/local/bin/cvera", "--help"]   # binary health only
       interval: 30s
       timeout: 5s
       retries: 3

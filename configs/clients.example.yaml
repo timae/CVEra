@@ -1,9 +1,9 @@
-## VulnMon — example client enrollments
+## CVEra — example client enrollments
 ##
-## Import with:  vulnmon client import configs/clients.example.yaml
+## Import with:  cvera client import configs/clients.example.yaml
 ##
 ## Clients are organisations whose infrastructure we manage.
-## Enrollments tell VulnMon which catalog services each client runs.
+## Enrollments tell CVEra which catalog services each client runs.
 ##
 ## Per-enrollment overrides (criticality, exposure) are optional.
 ## When absent, the catalog service's default_criticality / default_exposure

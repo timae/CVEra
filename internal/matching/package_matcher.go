@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yourorg/vulnmon/internal/models"
-	"github.com/yourorg/vulnmon/internal/normalize"
+	"github.com/yourorg/cvera/internal/models"
+	"github.com/yourorg/cvera/internal/normalize"
 )
 
 // PackageMatcher implements Matcher using package ecosystem + version ranges.

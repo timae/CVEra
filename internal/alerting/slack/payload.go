@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yourorg/vulnmon/internal/alerting"
+	"github.com/yourorg/cvera/internal/alerting"
 )
 
 // slackMessage is the top-level Slack Block Kit message.
@@ -55,9 +55,9 @@ func buildPayload(p *alerting.AlertPayload) *slackMessage {
 	}
 
 	footer := fmt.Sprintf(
-		"Resolve: `vulnmon catalog update --service=%s --version=<patched>` | "+
-			"Ack: `vulnmon alert ack %s --note=\"...\"` | "+
-			"Suppress: `vulnmon alert suppress --cve=%s --service=%s`\nVulnMon",
+		"Resolve: `cvera catalog update --service=%s --version=<patched>` | "+
+			"Ack: `cvera alert ack %s --note=\"...\"` | "+
+			"Suppress: `cvera alert suppress --cve=%s --service=%s`\nCVEra",
 		p.CatalogServiceSlug, p.AlertID[:8], p.VulnID, p.CatalogServiceSlug,
 	)
 

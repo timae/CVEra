@@ -117,7 +117,7 @@ func acquireAdvisoryLock(ctx context.Context, pool *pgxpool.Pool, key int64) (bo
 // The same name always produces the same key across restarts and replicas.
 func advisoryLockKey(name string) int64 {
 	h := fnv.New64a()
-	_, _ = h.Write([]byte("vulnmon:" + name))
+	_, _ = h.Write([]byte("cvera:" + name))
 	// Convert to int64 — PostgreSQL advisory locks use int8 (signed 64-bit).
 	return int64(h.Sum64())
 }
