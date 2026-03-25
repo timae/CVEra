@@ -346,6 +346,85 @@ The live NVD smoke test completed successfully and updated the ingestion checkpo
 - Catalog version update and alert-management CLI flows are not implemented
 - There is no real integration test suite yet
 
+## Roadmap
+
+### 1. Complete OSV / Package-Range Matching
+
+Goal: match vulnerabilities that are expressed as package ecosystem advisories rather than NVD CPE records.
+
+What needs to be implemented:
+
+- add OSV ingestion source(s) that persist normalized `affected_ranges`
+- parse OSV ecosystem/package/range payloads in `internal/matching/package_matcher.go`
+- evaluate `introduced` / `fixed` / `last_affected` event sequences against normalized service versions
+- map catalog entries cleanly to package coordinates such as Go module names or distro package names
+- add deterministic tests covering in-range, fixed, unknown-version, and no-match cases
+
+Current operational behavior:
+
+- package-based advisories are treated as not applicable by the matcher
+- ingestion stays healthy
+- coverage is incomplete, especially for products where OSV is stronger than NVD CPE data
+
+Risk until complete:
+
+- false negatives for services that depend on package/ecosystem matching
+- under-alerting for Go- or package-centric software
+
+### 2. Finish Alert Lifecycle Management
+
+Goal: make alerts behave like an operational system, not just a first-write record.
+
+What needs to be implemented:
+
+- robust dedup rules across `pending`, `sent`, `acknowledged`, `suppressed`, `resolved`, and `re_triggered`
+- automatic resolution when a catalog version update invalidates the underlying match
+- re-trigger logic when severity meaningfully increases or KEV status changes
+- explicit acknowledge / suppress / resolve workflows in the CLI
+- richer persistence for send history, retry state, and audit detail
+- tests that prove transition behavior and prevent duplicate notifications
+
+Current operational behavior:
+
+- CVEra can create initial alert records from valid matches
+- Slack send is attempted only when enabled
+- dedup exists only in a simple form
+- resolve and re-trigger flows are not mature yet
+
+Risk until complete:
+
+- alerts may remain open longer than they should
+- important changes to a CVE may not generate a fresh notification
+- operators do not yet have a complete workflow for alert state management
+
+### 3. Production-Readiness Sequence
+
+Suggested implementation order:
+
+1. finish `package_matcher.go`
+2. implement KEV ingestion
+3. implement alert resolve / re-trigger behavior
+4. add alert-management CLI commands
+5. add integration tests for ingest → match → alert → resolve
+6. only then enable Slack notifications broadly in production
+
+### 4. What “Production Ready” Means Here
+
+For matching:
+
+- NVD CPE matching works
+- OSV/package-range matching works
+- KEV and EPSS enrichments are present
+- test coverage proves no regressions in version evaluation
+
+For alerting:
+
+- duplicate notifications are prevented reliably
+- alerts resolve automatically when versions are patched
+- alerts re-trigger only on meaningful changes
+- operators can acknowledge, suppress, and resolve through supported commands
+- Slack delivery is observable and retry behavior is defined
+
 ---
 
 ## Deployment Pipeline Example
