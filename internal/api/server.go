@@ -75,10 +75,11 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleReadyz returns 200 if the service is ready to serve traffic.
-// Returns 503 if last NVD ingestion is stale (> 2 hours).
+// Fresh deployments with no successful ingestion yet are considered ready.
+// Returns 503 only when an existing NVD checkpoint is stale (> 2 hours).
 func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	last := s.lastNVDIngestion()
-	if last == nil || time.Since(*last) > 2*time.Hour {
+	if last != nil && time.Since(*last) > 2*time.Hour {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte("nvd ingestion stale"))
 		return

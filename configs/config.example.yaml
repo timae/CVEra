@@ -54,39 +54,53 @@ logging:
 # ── Alerting ──────────────────────────────────────────────────────────────────
 alerting:
   slack:
+    enabled: false
     webhook_url: ""         # override via CVERA_ALERTING_SLACK_WEBHOOK_URL
     channel:    "#security-alerts"
-    username:   "CVEra"
-    icon_emoji: ":shield:"
+    timeout:    10s
+    max_retries: 3
 
-  # Minimum severity to trigger a Slack alert.
-  # Alerts below this threshold are still stored in the DB.
-  min_severity: high        # critical | high | medium | low
-
-  # Only alert on matches with at least this confidence level.
-  min_confidence: strong    # exact | strong | weak | unknown
+  min_cvss_score: 7.0
+  alert_on_kev: true
+  alert_on_epss_threshold: 0.5
+  re_notify_on_kev_entry: true
+  re_notify_on_cvss_increase: 2.0
+  re_notify_cooldown: 24h
 
 # ── Ingestion ─────────────────────────────────────────────────────────────────
 ingestion:
   nvd:
+    enabled: true
     api_key:  ""            # override via CVERA_INGESTION_NVD_API_KEY
                             # Without a key requests are rate-limited to 5 req/30s.
-    base_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    api_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
     schedule: "0 * * * *"  # hourly
-    page_size: 2000
-    lookback:  "2h"         # initial window for incremental sync
+    results_per_page: 2000
+    initial_lookback: 720h
+    rate_limit_delay: 700ms
+    max_retries: 3
+    retry_base_delay: 2s
+    retry_max_delay: 60s
 
   cisa_kev:
+    enabled: true
     url:      "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
     schedule: "0 6 * * *"  # daily at 06:00
+    max_retries: 3
 
   epss:
-    url:      "https://epss.cyentia.com/epss_scores-current.csv.gz"
+    enabled: true
+    api_url:  "https://api.first.org/data/v1/epss"
     schedule: "30 6 * * *" # daily at 06:30
+    lookback_days: 7
+
+  osv:
+    enabled: true
+    api_url: "https://api.osv.dev/v1"
+    max_retries: 3
 
 # ── Matching ──────────────────────────────────────────────────────────────────
 matching:
-  # Maximum number of vulnerabilities processed in a single matching run.
-  batch_size: 500
-  # Parallelism for matching goroutines.
-  workers: 4
+  min_confidence: weak
+  min_alert_confidence: strong
+  run_after_ingestion: true

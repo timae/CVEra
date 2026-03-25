@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers "pgx" driver for database/sql
-	_ "modernc.org/sqlite"              // registers "sqlite" driver for database/sql
+	_ "modernc.org/sqlite"             // registers "sqlite" driver for database/sql
 
 	"github.com/yourorg/cvera/internal/config"
 )
@@ -32,26 +34,34 @@ func (b Backend) GooseDialect() string {
 
 // MigrationsDir returns the migration directory for this backend.
 func (b Backend) MigrationsDir() string {
+	candidates := []string{}
 	switch b {
 	case BackendSQLite:
-		return "migrations/sqlite"
+		candidates = []string{"migrations/sqlite", "/migrations/sqlite"}
 	default:
-		return "migrations/postgres"
+		candidates = []string{"migrations/postgres", "/migrations/postgres"}
 	}
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	return filepath.Clean(candidates[0])
 }
 
 // Open creates a *sql.DB connected to the configured backend and verifies
 // connectivity. The caller is responsible for calling db.Close().
 //
 // Backends:
-//   "sqlite"   — single-file database, zero infrastructure, ideal for
-//                single-instance deployments and local development.
-//   "postgres" — full PostgreSQL; supports multiple replicas with advisory
-//                locking. Requires a running PostgreSQL server.
+//
+//	"sqlite"   — single-file database, zero infrastructure, ideal for
+//	             single-instance deployments and local development.
+//	"postgres" — full PostgreSQL; supports multiple replicas with advisory
+//	             locking. Requires a running PostgreSQL server.
 func Open(ctx context.Context, cfg config.DatabaseConfig) (*sql.DB, Backend, error) {
 	backend := Backend(cfg.Backend)
 	if backend == "" {
-		backend = BackendPostgres
+		backend = BackendSQLite
 	}
 
 	var (

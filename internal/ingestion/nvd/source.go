@@ -2,6 +2,7 @@ package nvd
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/yourorg/cvera/internal/config"
@@ -104,9 +106,9 @@ func (s *Source) Fetch(ctx context.Context, since time.Time) (<-chan ingestion.F
 
 // nvdResponse is the top-level NVD API v2 response shape.
 type nvdResponse struct {
-	ResultsPerPage int              `json:"resultsPerPage"`
-	StartIndex     int              `json:"startIndex"`
-	TotalResults   int              `json:"totalResults"`
+	ResultsPerPage  int             `json:"resultsPerPage"`
+	StartIndex      int             `json:"startIndex"`
+	TotalResults    int             `json:"totalResults"`
 	Vulnerabilities []nvdCVEWrapper `json:"vulnerabilities"`
 }
 
@@ -158,13 +160,93 @@ func (s *Source) fetchPage(ctx context.Context, since time.Time, startIndex int)
 
 // normalize converts a raw NVD CVE JSON blob into a models.Vulnerability.
 func normalize(wrapper nvdCVEWrapper) (*models.Vulnerability, []byte, error) {
-	// TODO: implement full NVD → models.Vulnerability normalization.
-	// Key fields: cveId, descriptions, metrics (cvssMetricV31, cvssMetricV40),
-	// weaknesses (cweId), references, configurations (cpe matches),
-	// vulnStatus, published, lastModified.
 	raw := wrapper.CVE
-	_ = raw
-	return nil, nil, fmt.Errorf("nvd normalize: not implemented")
+	var item struct {
+		ID           string `json:"id"`
+		Source       string `json:"sourceIdentifier"`
+		Published    string `json:"published"`
+		LastModified string `json:"lastModified"`
+		VulnStatus   string `json:"vulnStatus"`
+		Descriptions []struct {
+			Lang  string `json:"lang"`
+			Value string `json:"value"`
+		} `json:"descriptions"`
+		Weaknesses []struct {
+			Description []struct {
+				Lang  string `json:"lang"`
+				Value string `json:"value"`
+			} `json:"description"`
+		} `json:"weaknesses"`
+		References []struct {
+			URL    string `json:"url"`
+			Source string `json:"source"`
+		} `json:"references"`
+		Metrics map[string][]struct {
+			Type     string `json:"type"`
+			CVSSData struct {
+				Version      string  `json:"version"`
+				VectorString string  `json:"vectorString"`
+				BaseScore    float64 `json:"baseScore"`
+				BaseSeverity string  `json:"baseSeverity"`
+			} `json:"cvssData"`
+		} `json:"metrics"`
+		Configurations []struct {
+			Nodes []struct {
+				CPEMatch []map[string]any `json:"cpeMatch"`
+			} `json:"nodes"`
+		} `json:"configurations"`
+	}
+	if err := json.Unmarshal(raw, &item); err != nil {
+		return nil, raw, fmt.Errorf("unmarshal nvd cve: %w", err)
+	}
+	if item.ID == "" {
+		return nil, raw, fmt.Errorf("missing CVE id")
+	}
+
+	description := firstLang(item.Descriptions)
+	referencesJSON, _ := json.Marshal(item.References)
+	cweIDs := extractCWEs(item.Weaknesses)
+	cpeMatches := flattenCPEMatches(item.Configurations)
+	cpeMatchesJSON, _ := json.Marshal(cpeMatches)
+
+	var (
+		publishedAt    *time.Time
+		lastModifiedAt *time.Time
+	)
+	if item.Published != "" {
+		if ts, err := time.Parse(time.RFC3339, item.Published); err == nil {
+			publishedAt = &ts
+		}
+	}
+	if item.LastModified != "" {
+		if ts, err := time.Parse(time.RFC3339, item.LastModified); err == nil {
+			lastModifiedAt = &ts
+		}
+	}
+
+	score, vector, severity := extractPrimaryCVSS(item.Metrics)
+	hash := sha256.Sum256(raw)
+	vuln := &models.Vulnerability{
+		ID:             uuidFromString(item.ID),
+		VulnID:         item.ID,
+		SourceType:     sourceName,
+		Title:          item.ID,
+		Description:    description,
+		CVSSv3Vector:   vector,
+		SeverityLabel:  severity,
+		VulnStatus:     normalizeStatus(item.VulnStatus),
+		PublishedAt:    publishedAt,
+		LastModifiedAt: lastModifiedAt,
+		CPEMatches:     cpeMatchesJSON,
+		AffectedRanges: []byte("[]"),
+		References:     referencesJSON,
+		CWEIDs:         cweIDs,
+		SourceHash:     fmt.Sprintf("%x", hash[:]),
+	}
+	if score != nil {
+		vuln.CVSSv3Score = score
+	}
+	return vuln, raw, nil
 }
 
 // Job wires the NVD Source with the repository layer into an IngestionJob.
@@ -202,13 +284,194 @@ func NewJob(
 func (j *Job) Source() ingestion.VulnerabilitySource { return j.source }
 
 func (j *Job) Run(ctx context.Context) error {
-	// TODO: implement full ingestion loop:
-	// 1. Load checkpoint to get `since` timestamp
-	// 2. Call source.Fetch(ctx, since)
-	// 3. For each result: UpsertSourceRecord, Upsert vulnerability
-	// 4. If VulnStatus == REJECTED: InvalidateForVuln
-	// 5. If matching trigger set: call matching(ctx, vulnID)
-	// 6. Save updated checkpoint
-	// 7. Emit metrics
-	return fmt.Errorf("nvd job: not implemented")
+	if !j.cfg.Enabled {
+		j.logger.Info("nvd ingestion disabled")
+		return nil
+	}
+
+	since := time.Now().UTC().Add(-j.cfg.InitialLookback)
+	cp, err := j.checkpoints.Get(ctx, j.source.Name())
+	if err != nil {
+		return fmt.Errorf("load checkpoint: %w", err)
+	}
+	if cp != nil && cp.LastSuccessAt != nil {
+		since = cp.LastSuccessAt.UTC()
+	}
+
+	results, err := j.source.Fetch(ctx, since)
+	if err != nil {
+		return fmt.Errorf("fetch from source: %w", err)
+	}
+
+	var (
+		firstErr error
+		count    int
+	)
+	for result := range results {
+		if result.Err != nil {
+			j.logger.Error("nvd fetch item failed", zap.Error(result.Err))
+			if firstErr == nil {
+				firstErr = result.Err
+			}
+			continue
+		}
+		if result.Vulnerability == nil {
+			continue
+		}
+
+		rec := &models.VulnerabilitySourceRecord{
+			ID:          uuidFromString(result.Vulnerability.VulnID + ":" + j.source.Name() + ":" + result.Vulnerability.SourceHash),
+			VulnID:      result.Vulnerability.VulnID,
+			SourceType:  j.source.Name(),
+			RawPayload:  result.RawPayload,
+			PayloadHash: result.Vulnerability.SourceHash,
+			IngestedAt:  time.Now().UTC(),
+		}
+		if err := j.vulnRepo.UpsertSourceRecord(ctx, rec); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("store source record for %s: %w", result.Vulnerability.VulnID, err)
+			}
+			continue
+		}
+		if err := j.vulnRepo.Upsert(ctx, result.Vulnerability); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("upsert vulnerability %s: %w", result.Vulnerability.VulnID, err)
+			}
+			continue
+		}
+		if j.matching != nil {
+			if err := j.matching(ctx, result.Vulnerability.VulnID); err != nil {
+				j.logger.Warn("matching trigger failed", zap.String("vuln_id", result.Vulnerability.VulnID), zap.Error(err))
+				if firstErr == nil {
+					firstErr = err
+				}
+			}
+		}
+		count++
+	}
+
+	now := time.Now().UTC()
+	saveErr := j.checkpoints.Save(ctx, &models.IngestionCheckpoint{
+		SourceType:     j.source.Name(),
+		LastSuccessAt:  &now,
+		CheckpointData: []byte(now.Format(time.RFC3339)),
+		Metadata:       []byte(fmt.Sprintf(`{"ingested_count":%d}`, count)),
+	})
+	if saveErr != nil && firstErr == nil {
+		firstErr = fmt.Errorf("save checkpoint: %w", saveErr)
+	}
+
+	if firstErr == nil {
+		j.logger.Info("nvd ingestion completed", zap.Int("ingested_count", count), zap.Time("since", since))
+	}
+	return firstErr
+}
+
+func firstLang(items []struct {
+	Lang  string `json:"lang"`
+	Value string `json:"value"`
+}) string {
+	for _, item := range items {
+		if item.Lang == "en" && item.Value != "" {
+			return item.Value
+		}
+	}
+	if len(items) > 0 {
+		return items[0].Value
+	}
+	return ""
+}
+
+func extractCWEs(weaknesses []struct {
+	Description []struct {
+		Lang  string `json:"lang"`
+		Value string `json:"value"`
+	} `json:"description"`
+}) []string {
+	var cwes []string
+	seen := map[string]bool{}
+	for _, weakness := range weaknesses {
+		for _, desc := range weakness.Description {
+			if desc.Value == "" || desc.Value == "NVD-CWE-noinfo" || seen[desc.Value] {
+				continue
+			}
+			seen[desc.Value] = true
+			cwes = append(cwes, desc.Value)
+		}
+	}
+	return cwes
+}
+
+func flattenCPEMatches(configs []struct {
+	Nodes []struct {
+		CPEMatch []map[string]any `json:"cpeMatch"`
+	} `json:"nodes"`
+}) []map[string]any {
+	var matches []map[string]any
+	for _, cfg := range configs {
+		for _, node := range cfg.Nodes {
+			matches = append(matches, node.CPEMatch...)
+		}
+	}
+	return matches
+}
+
+func extractPrimaryCVSS(metrics map[string][]struct {
+	Type     string `json:"type"`
+	CVSSData struct {
+		Version      string  `json:"version"`
+		VectorString string  `json:"vectorString"`
+		BaseScore    float64 `json:"baseScore"`
+		BaseSeverity string  `json:"baseSeverity"`
+	} `json:"cvssData"`
+}) (*float64, string, string) {
+	order := []string{"cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"}
+	for _, key := range order {
+		entries := metrics[key]
+		if len(entries) == 0 {
+			continue
+		}
+		score := entries[0].CVSSData.BaseScore
+		vector := entries[0].CVSSData.VectorString
+		severity := entries[0].CVSSData.BaseSeverity
+		if severity == "" {
+			severity = "unknown"
+		}
+		return &score, vector, normalizeSeverity(severity)
+	}
+	return nil, "", "unknown"
+}
+
+func normalizeSeverity(value string) string {
+	switch value {
+	case "CRITICAL", "critical":
+		return "critical"
+	case "HIGH", "high":
+		return "high"
+	case "MEDIUM", "medium", "MODERATE", "moderate":
+		return "medium"
+	case "LOW", "low":
+		return "low"
+	case "NONE", "none":
+		return "none"
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeStatus(value string) string {
+	switch value {
+	case "Modified", "modified":
+		return models.VulnStatusModified
+	case "Rejected", "rejected":
+		return models.VulnStatusRejected
+	case "Disputed", "disputed":
+		return models.VulnStatusDisputed
+	default:
+		return models.VulnStatusPublished
+	}
+}
+
+func uuidFromString(value string) uuid.UUID {
+	return uuid.NewSHA1(uuid.Nil, []byte(value))
 }

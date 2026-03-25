@@ -4,7 +4,9 @@
 > Version is a property of your managed catalog, not of each client.
 > This eliminates per-client version tracking and simplifies the entire pipeline.
 
-CVEra is a production-grade internal vulnerability monitoring platform for managed service providers. It maintains a catalog of the services you deploy, tracks which clients run which catalog entries, ingests structured vulnerability intelligence from authoritative feeds, matches affected catalog entries with a confidence-scored engine, and delivers Slack alerts scoped to the managed offering — listing all affected clients in a single notification.
+CVEra is an internal vulnerability-monitoring platform for managed service providers. It maintains a catalog of the services you deploy, tracks which clients run which catalog entries, ingests structured vulnerability intelligence from authoritative feeds, and exposes health and status endpoints for operating the daemon.
+
+> **Current state:** build, migration, seeding, daemon startup, and NVD ingestion are working and verified. Matching and alerting remain scaffolded and are not complete yet.
 
 ---
 
@@ -175,15 +177,20 @@ git clone https://github.com/timae/CVEra.git && cd CVEra
 # Build
 make build
 
-# Copy config (SQLite is the default — no Postgres needed)
+# Copy config (SQLite is the default)
 cp configs/config.example.yaml configs/config.yaml
-# → set ingestion.nvd.api_key and alerting.slack.webhook_url
+# Optional:
+#   - set ingestion.nvd.api_key for higher NVD rate limits
+#   - enable Slack only after alerting is implemented
 
 # Create schema and seed example data
 make migrate-up
 make seed
 
-# Start
+# Run one manual NVD ingestion pass
+make ingest
+
+# Start the daemon
 make run
 ```
 
@@ -202,7 +209,7 @@ database:
   ssl_mode:  require
 ```
 
-Then `make migrate-up && make run`. Everything else is identical.
+Then `make migrate-up && make run`. For local Docker-based Postgres, see `deploy/docker-compose.yml`.
 
 ### Docker
 
@@ -219,13 +226,14 @@ docker compose -f deploy/docker-compose.yml --profile postgres up -d
 ```
 make build           Compile ./bin/cvera
 make test            Unit tests
-make test-int        Integration tests (requires running Postgres)
+make test-int        Integration tests (requires running Postgres; no test files yet)
 make lint            golangci-lint
 make docker-build    Build production Docker image
 make migrate-up      Apply pending migrations
 make migrate-down    Roll back last migration
 make seed            Import catalog.example.yaml + clients.example.yaml
 make run             Start daemon locally
+make ingest          Trigger one manual NVD ingestion run
 make up / down       Start/stop full Compose stack
 make help            Show all targets
 ```
@@ -252,19 +260,29 @@ database:
 
 ingestion:
   nvd:
-    api_key:  ""         # CVERA_INGESTION_NVD_API_KEY
-    schedule: "0 * * * *"   # hourly
+    enabled: true
+    api_key: ""               # CVERA_INGESTION_NVD_API_KEY
+    api_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    schedule: "0 * * * *"
+    initial_lookback: 720h
+    results_per_page: 2000
   cisa_kev:
-    schedule: "0 6 * * *"   # daily
+    enabled: true
+    schedule: "0 6 * * *"
   epss:
-    schedule: "30 6 * * *"  # daily
+    enabled: true
+    schedule: "30 6 * * *"
 
 alerting:
   slack:
+    enabled: false
     webhook_url: ""      # CVERA_ALERTING_SLACK_WEBHOOK_URL
     channel: "#security-alerts"
-  min_severity:   high
-  min_confidence: strong
+  min_cvss_score: 7.0
+
+matching:
+  min_confidence: weak
+  min_alert_confidence: strong
 ```
 
 See [`configs/config.example.yaml`](configs/config.example.yaml) for the full annotated reference.
@@ -274,22 +292,16 @@ See [`configs/config.example.yaml`](configs/config.example.yaml) for the full an
 ## CLI Reference
 
 ```
-cvera serve                               Start the daemon
-cvera migrate [up|down|status]            Database migrations
-cvera catalog import --file=catalog.yaml  Import service catalog
-cvera catalog list                        List catalog services
-cvera catalog update --service=haproxy \
-         --version=2.8.5                   Update deployed version
-cvera client import --file=clients.yaml   Import client enrollments
-cvera client list                         List clients
-cvera alert list                          List active alerts
-cvera alert ack <id> --note="..."        Acknowledge alert
-cvera alert suppress \
-  --cve=CVE-2024-1234 \
-  --service=haproxy \
-  --reason="Not affected"                  Suppress alert
-cvera ingest run [--source=nvd]           Trigger manual ingestion
+cvera serve                              Start the daemon
+cvera migrate up|down|status             Database migrations
+cvera catalog import <catalog.yaml>      Import service catalog
+cvera catalog list                       List catalog services
+cvera client import <clients.yaml>       Import clients + enrollments
+cvera client list                        List clients
+cvera ingest run                         Trigger manual NVD ingestion
 ```
+
+`alert` subcommands and catalog version update flows are not implemented yet.
 
 ---
 
@@ -309,49 +321,29 @@ cvera ingest run [--source=nvd]           Trigger manual ingestion
 
 ---
 
-## Implementation Status
+## Verified State
 
-### Scaffold Complete ✅
+The following paths were exercised successfully against the current tree:
 
-| Layer | Status | Notes |
-|-------|--------|-------|
-| Models | ✅ | All domain types defined |
-| Config | ✅ | Viper loading + validation |
-| DB connect + migrate | ✅ | pgxpool + goose |
-| Repository interfaces | ✅ | All 8 interfaces defined |
-| Repository stubs | ✅ | pgx implementations stubbed (panics) |
-| Ingestion abstraction | ✅ | `VulnerabilitySource` interface + runner |
-| NVD source | ✅ | Pagination, retry, checkpointing skeleton |
-| Version normalizer | ✅ | Semver, calver, distro suffix stripping |
-| CPE parser | ✅ | CPE 2.3 parsing + matching helpers |
-| CPE matcher | ✅ | Exact + version range confidence |
-| Package matcher | ✅ | Skeleton (OSV range parsing TODO) |
-| Matching engine | ✅ | Wiring skeleton |
-| Alerting engine | ✅ | Dedup + suppression check skeleton |
-| Slack notifier | ✅ | Block Kit payload + retry |
-| Scheduler | ✅ | Advisory lock + cron wiring |
-| HTTP API | ✅ | `/healthz`, `/readyz`, `/metrics` |
-| CLI entrypoint | ✅ | cobra `serve`, `migrate`, `catalog`, `client`, `alert`, `ingest` |
-| Migration | ✅ | Full schema (goose up/down) |
-| Dockerfile | ✅ | Distroless, non-root |
-| docker-compose | ✅ | Postgres + daemon, local dev |
-| Makefile | ✅ | build, test, lint, migrate, seed, docker |
-| Config examples | ✅ | config, catalog (7 services), clients (3 tenants) |
+- `make build`
+- `make test`
+- `make migrate-up`
+- `make seed`
+- `./bin/cvera --config configs/config.example.yaml ingest run`
+- `./bin/cvera --config configs/config.example.yaml serve`
+- `GET /healthz`
+- `GET /readyz`
+- `GET /api/v1/status`
 
-### Pending Implementation 🔧
+The live NVD smoke test completed successfully and updated the ingestion checkpoint.
 
-| Ticket | Description |
-|--------|-------------|
-| `VM-01` | Wire up all repository `panic("not implemented")` stubs with real pgx queries |
-| `VM-02` | Complete NVD pagination and checkpoint persistence |
-| `VM-03` | Implement CISA KEV source (`ingestion/kev/source.go`) |
-| `VM-04` | Implement EPSS enrichment source (`ingestion/epss/source.go`) |
-| `VM-05` | Implement OSV.dev source + package range matching |
-| `VM-06` | Complete `matching/engine.go` — RunForVulnerability + RunForCatalogService |
-| `VM-07` | Complete `alerting/engine.go` — alert creation, dedup, send, re-trigger |
-| `VM-08` | Implement `catalog import` + `client import` CLI commands |
-| `VM-09` | Integration test suite with testcontainers-go |
-| `VM-10` | Audit logger (`internal/audit/logger.go`) |
+## Remaining Gaps
+
+- Matching engine orchestration is still not implemented in `internal/matching/engine.go`
+- Alert creation and Slack delivery orchestration are still scaffolded
+- CISA KEV, EPSS, and OSV ingestion sources are not implemented
+- Catalog version update and alert-management CLI flows are not implemented
+- There is no real integration test suite yet
 
 ---
 
