@@ -2,7 +2,6 @@ package matching
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/yourorg/cvera/internal/models"
 	"github.com/yourorg/cvera/internal/normalize"
@@ -40,15 +39,16 @@ func (m *PackageMatcher) Match(ctx context.Context, svc *models.CatalogService, 
 
 	svcVersion := normalize.Normalize(svc.Version)
 	if svcVersion.IsUnknown {
-		// Cannot evaluate range without a parseable version.
 		return &MatchResult{
 			Confidence:      models.ConfidenceUnknown,
 			Method:          models.MatchMethodPackageRange,
-			MatchedOn:       fmt.Sprintf("%s:%s", svc.PackageEcosystem, svc.PackageName),
+			MatchedOn:       svc.PackageEcosystem + ":" + svc.PackageName,
 			VersionAffected: false,
 			Detail:          map[string]any{"reason": "service version unknown"},
 		}, nil
 	}
 
-	return nil, fmt.Errorf("package matcher: not implemented")
+	// OSV range matching is not implemented yet. Treat as not-applicable
+	// instead of failing the entire orchestration path.
+	return nil, nil
 }

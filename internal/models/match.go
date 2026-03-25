@@ -25,32 +25,30 @@ const (
 type MatchMethod string
 
 const (
-	MatchMethodCPEExact      MatchMethod = "cpe_exact"
-	MatchMethodCPERange      MatchMethod = "cpe_range"
-	MatchMethodPackageRange  MatchMethod = "package_range"
-	MatchMethodProductFuzzy  MatchMethod = "product_fuzzy"
+	MatchMethodCPEExact     MatchMethod = "cpe_exact"
+	MatchMethodCPERange     MatchMethod = "cpe_range"
+	MatchMethodPackageRange MatchMethod = "package_range"
+	MatchMethodProductFuzzy MatchMethod = "product_fuzzy"
 )
 
 // Match records that a CatalogService is potentially affected by a Vulnerability.
 // One match covers ALL clients enrolled in that catalog service.
 // Matches are immutable once created; a new record is written if conditions change.
 type Match struct {
-	ID               uuid.UUID   `db:"id"`
-	CatalogServiceID uuid.UUID   `db:"catalog_service_id"`
-	VulnerabilityID  uuid.UUID   `db:"vulnerability_id"`
+	ID               uuid.UUID `db:"id"`
+	CatalogServiceID uuid.UUID `db:"catalog_service_id"`
+	VulnID           string    `db:"vuln_id"`
 
-	Confidence   Confidence  `db:"confidence"`
-	MatchMethod  MatchMethod `db:"match_method"`
-	MatchedCPE   string      `db:"matched_cpe"`     // which CPE or package spec triggered this
-	MatchedVersion string    `db:"matched_version"` // catalog version at match time
+	Confidence     Confidence  `db:"confidence"`
+	MatchMethod    MatchMethod `db:"match_method"`
+	MatchedCPE     string      `db:"matched_cpe"`     // which CPE or package spec triggered this
+	MatchedVersion string      `db:"matched_version"` // catalog version at match time
 
-	// MatchDetail holds full match evidence for audit and debugging.
-	// Stored as JSONB — content varies by match method.
-	MatchDetail []byte `db:"match_detail"`
+	Notes []byte `db:"notes"` // JSON evidence for audit/debugging
 
-	IsValid            bool       `db:"is_valid"`
-	InvalidatedReason  string     `db:"invalidated_reason"`
-	InvalidatedAt      *time.Time `db:"invalidated_at"`
+	IsValid           bool       `db:"is_valid"`
+	InvalidatedAt     *time.Time `db:"invalidated_at"`
+	InvalidatedReason string     `db:"-"`
 
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`

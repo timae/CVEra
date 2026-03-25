@@ -57,13 +57,13 @@ type VulnerabilityRepository interface {
 // MatchRepository manages match records between catalog services and vulnerabilities.
 // One match record per (catalog_service, vulnerability, method) — not per client.
 type MatchRepository interface {
-	GetByCatalogAndVuln(ctx context.Context, catalogServiceID, vulnID uuid.UUID) (*models.Match, error)
+	GetByCatalogAndVuln(ctx context.Context, catalogServiceID uuid.UUID, vulnID string) (*models.Match, error)
 	Upsert(ctx context.Context, m *models.Match) error
-	ListActiveForVuln(ctx context.Context, vulnID uuid.UUID) ([]*models.Match, error)
+	ListActiveForVuln(ctx context.Context, vulnID string) ([]*models.Match, error)
 	ListActiveForCatalogService(ctx context.Context, catalogServiceID uuid.UUID) ([]*models.Match, error)
 	// InvalidateForCatalogService is called when UpdateVersion runs.
 	InvalidateForCatalogService(ctx context.Context, catalogServiceID uuid.UUID, reason string) error
-	InvalidateForVuln(ctx context.Context, vulnID uuid.UUID, reason string) error
+	InvalidateForVuln(ctx context.Context, vulnID string, reason string) error
 }
 
 // AlertRepository manages alert state. Dedup key: "{catalog_slug}:{vuln_id}".

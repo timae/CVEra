@@ -10,21 +10,17 @@ import (
 // Rules are evaluated in order; the first match wins.
 //
 // Scope hierarchy (most specific first):
-//   1. CatalogServiceID + ClientID + VulnID  — suppress for one client, one service, one CVE
-//   2. CatalogServiceID + VulnID             — suppress for all clients, one service, one CVE
-//   3. CatalogServiceID + MaxCVSS            — suppress all CVEs below threshold for a service
-//   4. VulnID only                           — suppress a CVE globally
+//  1. CatalogServiceID + VulnID — suppress one CVE for one service
+//  2. VulnID only              — suppress one CVE globally
+//  3. CatalogServiceID only    — suppress all CVEs for one service
 type Suppression struct {
 	ID               uuid.UUID  `db:"id"`
 	CatalogServiceID *uuid.UUID `db:"catalog_service_id"` // nil = applies to all services
-	ClientID         *uuid.UUID `db:"client_id"`           // nil = applies to all clients
-	VulnID           string     `db:"vuln_id"`             // empty = matches any CVE
-	MaxCVSS          *float64   `db:"max_cvss"`            // suppress if cvss <= this
+	VulnID           string     `db:"vuln_id"`            // empty = matches any CVE
 
 	Reason    string     `db:"reason"`
 	CreatedBy string     `db:"created_by"`
 	ExpiresAt *time.Time `db:"expires_at"` // nil = permanent
-	Active    bool       `db:"active"`
 	CreatedAt time.Time  `db:"created_at"`
 }
 

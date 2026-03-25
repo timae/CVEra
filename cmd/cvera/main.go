@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 
+	"github.com/yourorg/cvera/internal/alerting"
 	"github.com/yourorg/cvera/internal/alerting/slack"
 	"github.com/yourorg/cvera/internal/api"
 	"github.com/yourorg/cvera/internal/config"
@@ -79,6 +80,18 @@ func newServeCmd() *cobra.Command {
 			alertRepo := repository.NewAlertRepository(sqlDB)
 
 			notifier := slack.NewNotifier(cfg.Alerting.Slack, logger)
+			suppressRepo := repository.NewSuppressionRepository(sqlDB)
+			alertEngine := alerting.NewEngine(
+				matchRepo,
+				alertRepo,
+				enrollRepo,
+				vulnRepo,
+				catalogRepo,
+				suppressRepo,
+				notifier,
+				cfg.Alerting,
+				logger,
+			)
 			matchEngine := matching.NewEngine(
 				[]matching.Matcher{
 					matching.NewCPEMatcher(),
@@ -87,13 +100,12 @@ func newServeCmd() *cobra.Command {
 				catalogRepo,
 				vulnRepo,
 				matchRepo,
-				nil,
+				alertEngine.ProcessNewMatches,
 				logger,
 			)
-			_ = matchEngine
 
 			nvdSource := nvd.NewSource(cfg.Ingestion.NVD, logger)
-			nvdJob := nvd.NewJob(nvdSource, vulnRepo, checkpoints, nil, logger, cfg.Ingestion.NVD)
+			nvdJob := nvd.NewJob(nvdSource, vulnRepo, checkpoints, matchEngine.RunForVulnerability, logger, cfg.Ingestion.NVD)
 			runner := ingestion.NewRunner(logger, nvdJob)
 
 			sched := scheduler.New(sqlDB, backend, logger)
@@ -111,7 +123,7 @@ func newServeCmd() *cobra.Command {
 				return cp.LastSuccessAt
 			})
 
-			_, _, _, _ = enrollRepo, alertRepo, notifier, matchEngine
+			_, _, _, _ = enrollRepo, alertRepo, notifier, alertEngine
 
 			sched.Start()
 			defer sched.Stop()
@@ -342,8 +354,26 @@ func newIngestCmd() *cobra.Command {
 			defer sqlDB.Close()
 
 			vulnRepo := repository.NewVulnerabilityRepository(sqlDB)
+			catalogRepo := repository.NewCatalogRepository(sqlDB)
+			matchRepo := repository.NewMatchRepository(sqlDB)
+			alertRepo := repository.NewAlertRepository(sqlDB)
+			enrollRepo := repository.NewEnrollmentRepository(sqlDB)
+			suppressRepo := repository.NewSuppressionRepository(sqlDB)
 			source := nvd.NewSource(cfg.Ingestion.NVD, logger)
-			job := nvd.NewJob(source, vulnRepo, checkpoints, nil, logger, cfg.Ingestion.NVD)
+			notifier := slack.NewNotifier(cfg.Alerting.Slack, logger)
+			alertEngine := alerting.NewEngine(matchRepo, alertRepo, enrollRepo, vulnRepo, catalogRepo, suppressRepo, notifier, cfg.Alerting, logger)
+			matchEngine := matching.NewEngine(
+				[]matching.Matcher{
+					matching.NewCPEMatcher(),
+					matching.NewPackageMatcher(),
+				},
+				catalogRepo,
+				vulnRepo,
+				matchRepo,
+				alertEngine.ProcessNewMatches,
+				logger,
+			)
+			job := nvd.NewJob(source, vulnRepo, checkpoints, matchEngine.RunForVulnerability, logger, cfg.Ingestion.NVD)
 			if err := job.Run(cmd.Context()); err != nil {
 				return err
 			}

@@ -2,9 +2,10 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
-	"database/sql"
 
 	"github.com/yourorg/cvera/internal/models"
 )
@@ -13,61 +14,122 @@ type pgSuppressionRepository struct {
 	db *sql.DB
 }
 
-// NewSuppressionRepository returns a SuppressionRepository backed by PostgreSQL.
 func NewSuppressionRepository(db *sql.DB) SuppressionRepository {
 	return &pgSuppressionRepository{db: db}
 }
 
-// Match returns the first active suppression that applies to
-// (catalogServiceID, clientID, vuln), or nil if none matches.
-//
-// Scope resolution (most-specific first):
-//
-//	vuln_id + catalog_service_id  → exact scope
-//	vuln_id only                  → CVE-wide suppression
-//	catalog_service_id only       → service-wide suppression
 func (r *pgSuppressionRepository) Match(
 	ctx context.Context,
 	catalogServiceID uuid.UUID,
 	clientID *uuid.UUID,
 	v *models.Vulnerability,
 ) (*models.Suppression, error) {
-	// TODO: implement
-	// SELECT * FROM suppressions
-	// WHERE (expires_at IS NULL OR expires_at > NOW())
-	//   AND (
-	//     (vuln_id = $1 AND catalog_service_id = $2)
-	//  OR (vuln_id = $1 AND catalog_service_id IS NULL)
-	//  OR (vuln_id IS NULL AND catalog_service_id = $2)
-	//   )
-	// ORDER BY
-	//   (CASE WHEN vuln_id IS NOT NULL AND catalog_service_id IS NOT NULL THEN 0
-	//         WHEN vuln_id IS NOT NULL THEN 1
-	//         ELSE 2 END)
-	// LIMIT 1
-	panic("not implemented")
+	_ = clientID
+	query := rebindPlaceholders(r.db, `
+		SELECT id, vuln_id, catalog_service_id, reason, created_by, expires_at, created_at
+		FROM suppressions
+		WHERE (expires_at IS NULL OR expires_at > ?)
+		  AND (
+		    (vuln_id = ? AND catalog_service_id = ?)
+		 OR (vuln_id = ? AND catalog_service_id IS NULL)
+		 OR (vuln_id IS NULL AND catalog_service_id = ?)
+		  )
+		ORDER BY
+		  CASE
+		    WHEN vuln_id IS NOT NULL AND catalog_service_id IS NOT NULL THEN 0
+		    WHEN vuln_id IS NOT NULL THEN 1
+		    ELSE 2
+		  END,
+		  created_at DESC
+		LIMIT 1
+	`)
+	rows, err := r.db.QueryContext(ctx, query,
+		formatDBTime(time.Now().UTC()),
+		v.VulnID, catalogServiceID.String(),
+		v.VulnID,
+		catalogServiceID.String(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items, err := scanSuppressionRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	return items[0], nil
 }
 
-// Create inserts a new suppression rule.
 func (r *pgSuppressionRepository) Create(ctx context.Context, s *models.Suppression) error {
-	// TODO: implement
-	// INSERT INTO suppressions (id, vuln_id, catalog_service_id, reason, created_by, expires_at)
-	// VALUES ($1, $2, $3, $4, $5, $6)
-	panic("not implemented")
+	if s.ID == uuid.Nil {
+		s.ID = uuid.New()
+	}
+	query := rebindPlaceholders(r.db, `
+		INSERT INTO suppressions (id, vuln_id, catalog_service_id, reason, created_by, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`)
+	var catalogServiceID any
+	if s.CatalogServiceID != nil {
+		catalogServiceID = s.CatalogServiceID.String()
+	}
+	_, err := r.db.ExecContext(ctx, query, s.ID.String(), nullableString(s.VulnID), catalogServiceID, s.Reason, s.CreatedBy, nullableTime(s.ExpiresAt))
+	return err
 }
 
-// Expire sets expires_at = NOW() on a suppression, effectively deactivating it.
 func (r *pgSuppressionRepository) Expire(ctx context.Context, id uuid.UUID) error {
-	// TODO: implement
-	// UPDATE suppressions SET expires_at = NOW() WHERE id = $1
-	panic("not implemented")
+	query := rebindPlaceholders(r.db, "UPDATE suppressions SET expires_at = ? WHERE id = ?")
+	_, err := r.db.ExecContext(ctx, query, formatDBTime(time.Now().UTC()), id.String())
+	return err
 }
 
-// ListActive returns all non-expired suppression rules, ordered newest-first.
 func (r *pgSuppressionRepository) ListActive(ctx context.Context) ([]*models.Suppression, error) {
-	// TODO: implement
-	// SELECT * FROM suppressions
-	// WHERE expires_at IS NULL OR expires_at > NOW()
-	// ORDER BY created_at DESC
-	panic("not implemented")
+	query := rebindPlaceholders(r.db, `
+		SELECT id, vuln_id, catalog_service_id, reason, created_by, expires_at, created_at
+		FROM suppressions
+		WHERE expires_at IS NULL OR expires_at > ?
+		ORDER BY created_at DESC
+	`)
+	rows, err := r.db.QueryContext(ctx, query, formatDBTime(time.Now().UTC()))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSuppressionRows(rows)
+}
+
+func scanSuppressionRows(rows *sql.Rows) ([]*models.Suppression, error) {
+	var suppressions []*models.Suppression
+	for rows.Next() {
+		var (
+			s                models.Suppression
+			vulnID           sql.NullString
+			catalogServiceID sql.NullString
+			expiresAt        any
+			createdAt        any
+		)
+		if err := rows.Scan(&s.ID, &vulnID, &catalogServiceID, &s.Reason, &s.CreatedBy, &expiresAt, &createdAt); err != nil {
+			return nil, err
+		}
+		s.VulnID = vulnID.String
+		if catalogServiceID.Valid {
+			id, err := uuid.Parse(catalogServiceID.String)
+			if err != nil {
+				return nil, err
+			}
+			s.CatalogServiceID = &id
+		}
+		if !isNullishTime(expiresAt) {
+			if ts, err := parseDBTime(expiresAt); err == nil {
+				s.ExpiresAt = &ts
+			}
+		}
+		if ts, err := parseDBTime(createdAt); err == nil {
+			s.CreatedAt = ts
+		}
+		suppressions = append(suppressions, &s)
+	}
+	return suppressions, rows.Err()
 }

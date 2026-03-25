@@ -4,9 +4,9 @@
 > Version is a property of your managed catalog, not of each client.
 > This eliminates per-client version tracking and simplifies the entire pipeline.
 
-CVEra is an internal vulnerability-monitoring platform for managed service providers. It maintains a catalog of the services you deploy, tracks which clients run which catalog entries, ingests structured vulnerability intelligence from authoritative feeds, and exposes health and status endpoints for operating the daemon.
+CVEra is an internal vulnerability-monitoring platform for managed service providers. It maintains a catalog of the services you deploy, tracks which clients run which catalog entries, ingests structured vulnerability intelligence from authoritative feeds, matches vulnerabilities against your managed catalog, creates alert records, and exposes health and status endpoints for operating the daemon.
 
-> **Current state:** build, migration, seeding, daemon startup, and NVD ingestion are working and verified. Matching and alerting remain scaffolded and are not complete yet.
+> **Current state:** build, migration, seeding, daemon startup, NVD ingestion, matching orchestration, and alert-record creation are working and verified. Slack delivery works only when explicitly enabled and configured. KEV, EPSS, and OSV ingestion are still not implemented.
 
 ---
 
@@ -181,7 +181,7 @@ make build
 cp configs/config.example.yaml configs/config.yaml
 # Optional:
 #   - set ingestion.nvd.api_key for higher NVD rate limits
-#   - enable Slack only after alerting is implemented
+#   - set alerting.slack.enabled=true and alerting.slack.webhook_url to send Slack notifications
 
 # Create schema and seed example data
 make migrate-up
@@ -334,16 +334,62 @@ The following paths were exercised successfully against the current tree:
 - `GET /healthz`
 - `GET /readyz`
 - `GET /api/v1/status`
+- deterministic SQLite orchestration test for match + alert creation
 
-The live NVD smoke test completed successfully and updated the ingestion checkpoint.
+The live NVD smoke test completed successfully and updated the ingestion checkpoint. A deterministic SQLite test also verified that one synthetic vulnerability produces one match and one pending alert.
 
 ## Remaining Gaps
 
-- Matching engine orchestration is still not implemented in `internal/matching/engine.go`
-- Alert creation and Slack delivery orchestration are still scaffolded
 - CISA KEV, EPSS, and OSV ingestion sources are not implemented
+- OSV package-range matching is not implemented yet
+- Alert lifecycle is still basic: no full re-trigger, resolve, or operator workflow
 - Catalog version update and alert-management CLI flows are not implemented
 - There is no real integration test suite yet
+
+---
+
+## Deployment Pipeline Example
+
+One practical way to use CVEra in a managed-service deployment pipeline is to treat the service catalog as the source of truth for what version is currently deployed to customers.
+
+Example flow:
+
+1. Build and test the service you are deploying.
+2. Roll the new version out through your normal deployment system.
+3. Update the matching catalog entry in CVEra to the version you actually shipped.
+4. Run CVEra ingestion and matching immediately after the deployment update.
+5. Review any newly created alerts before closing the rollout.
+
+In a simple CI/CD pipeline, that can look like this:
+
+```bash
+# Deploy your managed service first
+./deploy-haproxy.sh --version 2.8.6
+
+# Update the CVEra catalog entry
+./bin/cvera --config configs/config.yaml catalog import configs/catalog.example.yaml
+
+# Pull the latest NVD changes and recompute matches/alerts
+./bin/cvera --config configs/config.yaml ingest run
+```
+
+In a more complete production setup, the intended logic is:
+
+- Store the catalog YAML in the same repo as your deployment manifests.
+- Change `current_version` in the catalog in the same PR that changes the shipped version.
+- After rollout, import the catalog into CVEra.
+- Trigger `ingest run` as a post-deploy job, or rely on the scheduler for steady-state updates.
+- If new alerts appear for the just-deployed version, fail the post-deploy verification stage or route the result to Slack/Jira.
+
+For Kubernetes or GitOps-style delivery, a typical sequence would be:
+
+1. Merge a PR that bumps both the Helm chart/image tag and the CVEra catalog version.
+2. Argo CD or Flux applies the workload change.
+3. A post-sync job calls `cvera catalog import ...` and `cvera ingest run`.
+4. CVEra refreshes matches against the deployed version and creates any new alert records.
+5. Your pipeline reads the resulting alert state or monitors Slack for critical findings.
+
+The important rule is simple: only update CVEra after the deployed version is real. CVEra should reflect the version customers are actually running, not the version someone hopes to ship later.
 
 ---
 
